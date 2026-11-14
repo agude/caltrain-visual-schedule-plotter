@@ -2,8 +2,10 @@
 
 import argparse
 import datetime as dt
-import shutil
+import io
+import tempfile
 import urllib.request
+import zipfile
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -23,7 +25,7 @@ from caltrain_schedule.gtfs import (
     station_positions,
 )
 from caltrain_schedule.legacy import fill_positions
-from caltrain_schedule.plot import ChartOptions, plot_marey
+from caltrain_schedule.plot import FONTS, TITLE_SIZE, ChartOptions, plot_marey
 
 # Caltrain's developer page links to this feed, which Trillium Transit hosts.
 FEED_URL = "https://data.trilliumtransit.com/gtfs/caltrain-ca-us/caltrain-ca-us.zip"
@@ -69,8 +71,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     commands = parser.add_subparsers(dest="command", required=True)
 
-    fetch = commands.add_parser("fetch", help="Download the current GTFS feed.")
-    fetch.add_argument("output", type=Path, help="Path to write the feed zip file to.")
+    fetch = commands.add_parser("fetch", help="Download the current GTFS feed and unpack it.")
+    fetch.add_argument(
+        "output", type=Path, help="Directory to unpack the feed into; must not exist."
+    )
     fetch.add_argument("--url", default=FEED_URL, help="Feed URL. Default: %(default)s")
 
     chart = commands.add_parser("plot", help="Draw a Marey chart from a GTFS feed.")
@@ -102,6 +106,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Station ID to label; repeat for more. Default: the 2017 set.",
     )
     chart.add_argument(
+        "--other-names",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Name the other served stations in grey. Their grid lines stay. Default: on.",
+    )
+    chart.add_argument(
         "--distances",
         type=Path,
         help="Feed to take station distances from, for a feed without them, such as 2017's."
@@ -116,10 +126,25 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def fetch_feed(url: str, output: Path) -> None:
-    """Download the feed at ``url`` to ``output``."""
+    """Download the feed zip at ``url`` and unpack its tables into ``output``.
+
+    ``output`` must not exist. The tables are unpacked into a temporary
+    directory beside it and renamed into place, so a failed download leaves
+    nothing behind. A GTFS zip holds only plain table files, so any entry
+    with a directory part is refused rather than written outside ``output``.
+    """
+    if output.exists():
+        raise SystemExit(f"caltrain-schedule: {output} already exists")
+    with urllib.request.urlopen(url) as response:
+        archive = zipfile.ZipFile(io.BytesIO(response.read()))
+    for name in archive.namelist():
+        if Path(name).name != name or name in {"", ".", ".."}:
+            raise SystemExit(f"caltrain-schedule: refusing feed entry {name!r}")
     output.parent.mkdir(parents=True, exist_ok=True)
-    with urllib.request.urlopen(url) as response, output.open("wb") as handle:
-        shutil.copyfileobj(response, handle)
+    with tempfile.TemporaryDirectory(dir=output.parent) as staging:
+        for name in archive.namelist():
+            (Path(staging) / name).write_bytes(archive.read(name))
+        Path(staging).rename(output)
 
 
 def describe_day(args: argparse.Namespace) -> str:
@@ -174,14 +199,16 @@ def draw_chart(args: argparse.Namespace) -> None:
         top_station=args.top,
         bottom_station=args.bottom,
         labeled_stations=args.labels or DEFAULT_LABELS,
+        other_names=args.other_names,
     )
 
-    fig, ax = plt.subplots(figsize=(WIDTH, HEIGHT))
-    plot_marey(ax, trips, feed.stations, positions, options)
-    ax.set_title(args.title or default_title(args, feed, services), fontsize=22)
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(args.output, dpi=DPI, bbox_inches="tight")
-    plt.close(fig)
+    with mpl.rc_context({"font.family": "sans-serif", "font.sans-serif": FONTS}):
+        fig, ax = plt.subplots(figsize=(WIDTH, HEIGHT))
+        plot_marey(ax, trips, feed.stations, positions, options)
+        ax.set_title(args.title or default_title(args, feed, services), fontsize=TITLE_SIZE)
+        fig.savefig(args.output, dpi=DPI, bbox_inches="tight")
+        plt.close(fig)
 
 
 def main(argv: Sequence[str] | None = None) -> int:

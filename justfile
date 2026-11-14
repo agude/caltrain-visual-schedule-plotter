@@ -91,29 +91,31 @@ hooks-install:
     chmod +x "$hook"
     echo "hooks-install: installed $hook"
 
-# Download the current Caltrain GTFS feed into data/, named by today's date.
+# Download the current Caltrain GTFS feed into data/caltrain-YYYYMMDD/.
 fetch:
-    uv run --locked caltrain-schedule fetch "data/caltrain-$(date +%Y%m%d).zip"
+    uv run --locked caltrain-schedule fetch "data/caltrain-$(date +%Y%m%d)"
 
 # Draw the blog's chart set from a feed into output/<feed name>/.
-# Default: the newest zip in data/. Station distances come from that zip,
-# because the 2017 feeds have none.
+# Default: the newest feed in data/. Station distances come from the newest
+# feed, because the 2017 feeds have none.
 charts feed="":
     #!/usr/bin/env bash
     set -euo pipefail
-    newest="$(ls data/caltrain-*.zip | sort | tail -n 1)"
+    newest="$(ls -d data/caltrain-*/ | sort | tail -n 1)"
+    newest="${newest%/}"
     feed={{ quote(feed) }}
     feed="${feed:-$newest}"
-    out="output/$(basename "${feed%.zip}")"
+    feed="${feed%/}"
+    out="output/$(basename "$feed")"
     plot() { uv run --locked caltrain-schedule plot "$feed" --distances "$newest" "$@"; }
     # Fixed time ranges that cover every feed, so charts of different
     # schedules line up.
-    day="--start 04:10 --end 26:30"
+    day="--start 04:10 --end 25:50"
     weekend="--start 06:40 --end 26:00"
     for suffix in png svg; do
         plot "$out/weekday.$suffix" $day
-        plot "$out/weekday_north.$suffix" $day --direction north
-        plot "$out/weekday_south.$suffix" $day --direction south
+        plot "$out/weekday_north.$suffix" $day --direction north --name "Weekday Northbound"
+        plot "$out/weekday_south.$suffix" $day --direction south --name "Weekday Southbound"
         plot "$out/weekday_gilroy.$suffix" $day --bottom gilroy
         plot "$out/weekday_morning.$suffix" --start 05:30 --end 10:30 --name "Weekday Morning"
         plot "$out/weekday_evening.$suffix" --start 15:30 --end 20:30 --name "Weekday Evening"
@@ -126,7 +128,7 @@ charts feed="":
 charts-all:
     #!/usr/bin/env bash
     set -euo pipefail
-    for feed in data/caltrain-*; do
+    for feed in data/caltrain-*/; do
         just charts "$feed"
     done
 

@@ -5,7 +5,6 @@ from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 
 from matplotlib.axes import Axes
-from matplotlib.font_manager import FontProperties
 from matplotlib.transforms import blended_transform_factory
 
 from caltrain_schedule.gtfs import Station, Trip
@@ -30,8 +29,16 @@ GRID_COLOR = "0.6"
 OTHER_STATION_COLOR = "0.6"
 OTHER_GRID_COLOR = "0.85"
 STATION_COLOR = "black"
-STATION_SIZE = "medium"
-OTHER_STATION_SIZE = "small"
+# Font sizes in points, from the 2017 SVGs: hours 14.4, stations 12, and
+# the title 22. Grey station names are smaller, in the same ratio as
+# matplotlib's "small" to "medium".
+HOUR_SIZE = 14.4
+STATION_SIZE = 12.0
+OTHER_STATION_SIZE = 10.0
+TITLE_SIZE = 22.0
+# The 2017 charts used Liberation Sans, a metric clone of Arial. DejaVu Sans
+# ships with matplotlib, so it is always available.
+FONTS = ["Liberation Sans", "Arial", "DejaVu Sans"]
 # Label spacing, as a multiple of the labeled stations' font size.
 LABEL_LINE_HEIGHT = 1.15
 # How much more a labeled station's name resists moving than a grey one's.
@@ -62,6 +69,9 @@ class ChartOptions:
     top_station: str = "san_francisco"
     bottom_station: str = "sj_diridon"
     labeled_stations: Collection[str] = ()
+    # Name the other served stations in grey. Their grid lines are drawn
+    # either way.
+    other_names: bool = True
 
 
 def route_color(route: str) -> str:
@@ -248,19 +258,20 @@ def plot_marey(
         color = GRID_COLOR if sid in major else OTHER_GRID_COLOR
         ax.axhline(positions[sid], color=color, linewidth=0.4, zorder=1)
 
-    fontsize = FontProperties(size=STATION_SIZE).get_size_in_points()
+    fontsize = STATION_SIZE
     _, axes_height = ax.get_window_extent().size
     points_per_mile = axes_height * 72 / ax.figure.dpi / (lower - upper)
     min_gap = fontsize * LABEL_LINE_HEIGHT / points_per_mile
+    named = [sid for sid in in_view if options.other_names or sid in major]
     label_positions = fit_labels(
-        [positions[sid] for sid in in_view],
-        [sid in major for sid in in_view],
+        [positions[sid] for sid in named],
+        [sid in major for sid in named],
         min_gap=min_gap,
         max_major_shift=MAX_MAJOR_SHIFT * min_gap,
     )
     left_edge = blended_transform_factory(ax.transAxes, ax.transData)
     for index, y in label_positions.items():
-        sid = in_view[index]
+        sid = named[index]
         is_major = sid in major
         ax.annotate(
             stations[sid].name if sid in stations else sid,
@@ -283,6 +294,7 @@ def plot_marey(
         )
 
     ax.tick_params(length=0)
+    ax.tick_params(axis="x", labelsize=HOUR_SIZE)
     for spine in ax.spines.values():
         spine.set_color(FRAME_COLOR)
         spine.set_linewidth(FRAME_WIDTH)

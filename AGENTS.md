@@ -60,8 +60,9 @@ CI pass.
 - `src/caltrain_schedule/legacy.py` maps 2017 stop names to station IDs and
   holds the 2017 mileposts.
 - `src/caltrain_schedule/cli.py` holds the `fetch` and `plot` commands.
-- `data/` holds dated feed snapshots: the 2017 feeds as directories, newer
-  ones as zips. The global gitignore excludes `*.zip`, so add new zips with
-  `git add -f`. `output/` holds rendered charts and is ignored.
+- `data/` holds dated feed snapshots, unpacked, byte-for-byte as
+  downloaded; `.gitattributes` exempts them from line-ending conversion.
+  Station distances come from the newest one. `output/` holds rendered
+  charts and is ignored.
 - `just fetch`, `just charts`, and `just charts-all` produce the blog's
   chart sets.

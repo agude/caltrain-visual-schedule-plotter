@@ -143,3 +143,8 @@ def feed_zip(tmp_path: Path) -> Path:
         for name, text in TABLES.items():
             archive.writestr(name, text)
     return path
+
+
+@pytest.fixture
+def feed_tables() -> dict[str, str]:
+    return dict(TABLES)

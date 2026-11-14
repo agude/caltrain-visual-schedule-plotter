@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import matplotlib as mpl
+import numpy as np
 
 mpl.use("Agg")
 
@@ -130,3 +131,16 @@ def test_fit_labels_drops_minor_labels_that_crowd_major_ones() -> None:
         max_major_shift=0.1,
     )
     assert fitted == pytest.approx({0: 0.0, 2: 1.5, 3: 5.0})
+
+
+def test_plot_marey_can_leave_out_other_names(feed_dir: Path) -> None:
+    feed = load_feed(feed_dir)
+    positions = station_positions(feed, "san_francisco")
+    fig, ax = plt.subplots()
+    options = ChartOptions(labeled_stations=("san_francisco",), other_names=False)
+    plot_marey(ax, feed.trips, feed.stations, positions, options)
+    assert [text.get_text() for text in ax.texts] == ["San Francisco"]
+    # Millbrae keeps its grid line.
+    millbrae = positions["place_MLBR"]
+    assert any(np.array_equal(line.get_ydata(), [millbrae, millbrae]) for line in ax.get_lines())
+    plt.close(fig)

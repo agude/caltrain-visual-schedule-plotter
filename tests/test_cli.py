@@ -4,6 +4,7 @@ import argparse
 import io
 import runpy
 import sys
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -39,18 +40,50 @@ def test_parse_hour() -> None:
             parse_hour(bad)
 
 
-def test_fetch_writes_download(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def serve_zip(monkeypatch: pytest.MonkeyPatch, entries: dict[str, str]) -> list[str]:
+    """Make urlopen return a zip of ``entries``, and record the URLs requested."""
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        for name, text in entries.items():
+            archive.writestr(name, text)
     requested: list[str] = []
 
     def fake_urlopen(url: str) -> io.BytesIO:
         requested.append(url)
-        return io.BytesIO(b"zip bytes")
+        return io.BytesIO(buffer.getvalue())
 
     monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
-    output = tmp_path / "data" / "feed.zip"
+    return requested
+
+
+def test_fetch_unpacks_feed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, feed_tables: dict[str, str]
+) -> None:
+    requested = serve_zip(monkeypatch, feed_tables)
+    output = tmp_path / "data" / "caltrain-20261113"
     assert main(["fetch", str(output), "--url", "https://example.com/feed.zip"]) == 0
     assert requested == ["https://example.com/feed.zip"]
-    assert output.read_bytes() == b"zip bytes"
+    assert sorted(path.name for path in output.iterdir()) == sorted(feed_tables)
+    assert (output / "stops.txt").read_text(encoding="utf-8") == feed_tables["stops.txt"]
+    # Only the unpacked feed is left in data/: no staging directory.
+    assert [path.name for path in output.parent.iterdir()] == ["caltrain-20261113"]
+
+
+@pytest.mark.parametrize("name", ["../escape.txt", "sub/stops.txt", "/abs.txt"])
+def test_fetch_refuses_entries_outside_the_feed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, name: str
+) -> None:
+    serve_zip(monkeypatch, {"stops.txt": "", name: ""})
+    output = tmp_path / "feed"
+    with pytest.raises(SystemExit, match="refusing feed entry"):
+        main(["fetch", str(output)])
+    assert not output.exists()
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_fetch_refuses_existing_output(tmp_path: Path) -> None:
+    with pytest.raises(SystemExit, match="already exists"):
+        main(["fetch", str(tmp_path)])
 
 
 @pytest.mark.parametrize(
@@ -115,3 +148,12 @@ def test_plot_names_chart_in_title(feed_zip: Path, tmp_path: Path) -> None:
     output = tmp_path / "chart.svg"
     assert main(["plot", str(feed_zip), str(output), "--name", "Weekday Morning"]) == 0
     assert "Weekday Morning, January 2026" in output.read_text(encoding="utf-8")
+
+
+def test_plot_without_other_names(feed_zip: Path, tmp_path: Path) -> None:
+    output = tmp_path / "chart.svg"
+    argv = ["plot", str(feed_zip), str(output), "--label=san_francisco", "--no-other-names"]
+    assert main(argv) == 0
+    svg = output.read_text(encoding="utf-8")
+    assert "San Francisco" in svg
+    assert "Millbrae" not in svg
