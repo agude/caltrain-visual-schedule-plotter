@@ -57,7 +57,11 @@ CI pass.
 - `src/caltrain_schedule/gtfs.py` reads a GTFS zip or directory and computes
   station distances.
 - `src/caltrain_schedule/plot.py` draws a Marey chart on a matplotlib `Axes`.
+- `src/caltrain_schedule/legacy.py` maps 2017 stop names to station IDs and
+  holds the 2017 mileposts.
 - `src/caltrain_schedule/cli.py` holds the `fetch` and `plot` commands.
-- `data/` holds dated feed snapshots. `output/` holds rendered charts and is
-  ignored.
-- `just fetch` and `just charts` produce the blog's chart set.
+- `data/` holds dated feed snapshots: the 2017 feeds as directories, newer
+  ones as zips. The global gitignore excludes `*.zip`, so add new zips with
+  `git add -f`. `output/` holds rendered charts and is ignored.
+- `just fetch`, `just charts`, and `just charts-all` produce the blog's
+  chart sets.

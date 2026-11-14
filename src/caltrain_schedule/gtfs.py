@@ -3,14 +3,19 @@
 import csv
 import datetime as dt
 import io
+import math
 import statistics
 import zipfile
-from collections import defaultdict, deque
+from collections import Counter, defaultdict, deque
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
+from caltrain_schedule.legacy import LEGACY_STATIONS
+
 METERS_PER_MILE = 1609.344
+RAIL_ROUTE_TYPE = "2"
+ONE_YEAR = dt.timedelta(days=365)
 
 # GTFS direction_id values, as Caltrain's directions.txt defines them.
 DIRECTION_NAMES = {"0": "north", "1": "south"}
@@ -117,12 +122,26 @@ def load_feed(path: Path) -> Feed:
     stations: dict[str, Station] = {}
     parent_of: dict[str, str] = {}
     for row in tables.rows("stops.txt"):
+        stop_id, name = row["stop_id"], row["stop_name"]
         if row.get("location_type") == "1":
-            stations[row["stop_id"]] = Station(row["stop_id"], station_name(row["stop_name"]))
+            stations[stop_id] = Station(stop_id, station_name(name))
+        elif row.get("parent_station"):
+            parent_of[stop_id] = row["parent_station"]
+        elif name in LEGACY_STATIONS:
+            # A feed without parent stations, such as 2017's.
+            station_id, display_name = LEGACY_STATIONS[name]
+            parent_of[stop_id] = station_id
+            stations[station_id] = Station(station_id, display_name)
         else:
-            parent_of[row["stop_id"]] = row.get("parent_station") or row["stop_id"]
+            parent_of[stop_id] = stop_id
 
-    routes = {row["route_id"]: row["route_short_name"] for row in tables.rows("routes.txt")}
+    # Keep trains only: GTFS route_type 2 is rail. The 2017 feeds include a
+    # Tamien shuttle bus.
+    routes = {
+        row["route_id"]: row["route_short_name"]
+        for row in tables.rows("routes.txt")
+        if row.get("route_type", RAIL_ROUTE_TYPE) == RAIL_ROUTE_TYPE
+    }
 
     stop_rows: dict[str, list[tuple[int, StopTime]]] = defaultdict(list)
     for row in tables.rows("stop_times.txt"):
@@ -143,6 +162,7 @@ def load_feed(path: Path) -> Feed:
             stop_times=tuple(stop for _, stop in sorted(stop_rows[row["trip_id"]])),
         )
         for row in tables.rows("trips.txt")
+        if row["route_id"] in routes
     )
 
     services = {
@@ -163,10 +183,27 @@ def load_feed(path: Path) -> Feed:
 
 
 def services_on_weekday(feed: Feed, weekday: str) -> set[str]:
-    """Return the regular service IDs for a day of the week, ignoring holidays."""
+    """Return the regular service IDs for a day of the week, ignoring holidays.
+
+    The regular service is the most common set of services on that day of
+    the week during the feed's first year. The calendar flags alone are
+    not enough: the July 2017 feed marks its Saturday service as running
+    every day, and removes it from weekdays with calendar_dates.txt.
+    """
     if weekday not in WEEKDAYS:
         raise ValueError(f"unknown day of the week: {weekday}")
-    return {sid for sid, service in feed.services.items() if weekday in service.weekdays}
+    if not feed.services:
+        return set()
+    first = min(service.start for service in feed.services.values())
+    last = min(max(service.end for service in feed.services.values()), first + ONE_YEAR)
+    first += dt.timedelta(days=(WEEKDAYS.index(weekday) - first.weekday()) % 7)
+    counts: Counter[frozenset[str]] = Counter()
+    date = first
+    while date <= last:
+        counts[frozenset(services_on_date(feed, date))] += 1
+        date += dt.timedelta(weeks=1)
+    most_common = counts.most_common(1)
+    return set(most_common[0][0]) if most_common else set()
 
 
 def services_on_date(feed: Feed, date: dt.date) -> set[str]:
@@ -195,6 +232,8 @@ def station_positions(feed: Feed, origin: str) -> dict[str, float]:
     southbound tracks differ slightly in length, which the median smooths
     out.
     """
+    if all(math.isnan(stop.shape_distance) for trip in feed.trips for stop in trip.stop_times):
+        raise ValueError("the feed has no shape_dist_traveled; take distances from another feed")
     offsets: dict[tuple[str, str], list[float]] = defaultdict(list)
     for trip in feed.trips:
         sign = 1.0 if trip.direction == "south" else -1.0

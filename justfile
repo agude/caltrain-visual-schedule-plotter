@@ -95,27 +95,40 @@ hooks-install:
 fetch:
     uv run --locked caltrain-schedule fetch "data/caltrain-$(date +%Y%m%d).zip"
 
-# Draw the blog's chart set from a feed. Default: the newest feed in data/.
+# Draw the blog's chart set from a feed into output/<feed name>/.
+# Default: the newest zip in data/. Station distances come from that zip,
+# because the 2017 feeds have none.
 charts feed="":
     #!/usr/bin/env bash
     set -euo pipefail
+    newest="$(ls data/caltrain-*.zip | sort | tail -n 1)"
     feed={{ quote(feed) }}
-    if [[ -z "$feed" ]]; then
-        feed="$(ls data/caltrain-*.zip | sort | tail -n 1)"
-    fi
-    plot() { uv run --locked caltrain-schedule plot "$feed" "$@"; }
+    feed="${feed:-$newest}"
+    out="output/$(basename "${feed%.zip}")"
+    plot() { uv run --locked caltrain-schedule plot "$feed" --distances "$newest" "$@"; }
+    # Fixed time ranges that cover every feed, so charts of different
+    # schedules line up.
+    day="--start 04:10 --end 26:30"
+    weekend="--start 06:40 --end 26:00"
     for suffix in png svg; do
-        plot "output/caltrain_weekday.$suffix"
-        plot "output/caltrain_weekday_north.$suffix" --direction north
-        plot "output/caltrain_weekday_south.$suffix" --direction south
-        plot "output/caltrain_weekday_gilroy.$suffix" --bottom gilroy
-        plot "output/caltrain_weekday_morning.$suffix" --start 05:30 --end 10:30 \
-            --title "Caltrain Schedule: Weekday Morning"
-        plot "output/caltrain_weekday_evening.$suffix" --start 15:30 --end 20:30 \
-            --title "Caltrain Schedule: Weekday Evening"
-        plot "output/caltrain_weekend.$suffix" --day weekend
+        plot "$out/weekday.$suffix" $day
+        plot "$out/weekday_north.$suffix" $day --direction north
+        plot "$out/weekday_south.$suffix" $day --direction south
+        plot "$out/weekday_gilroy.$suffix" $day --bottom gilroy
+        plot "$out/weekday_morning.$suffix" --start 05:30 --end 10:30 --name "Weekday Morning"
+        plot "$out/weekday_evening.$suffix" --start 15:30 --end 20:30 --name "Weekday Evening"
+        plot "$out/saturday.$suffix" $weekend --day saturday
+        plot "$out/sunday.$suffix" $weekend --day sunday
     done
-    echo "charts: wrote output/ from $feed"
+    echo "charts: wrote $out/ from $feed"
+
+# Draw the chart set for every feed in data/, to compare schedules.
+charts-all:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for feed in data/caltrain-*; do
+        just charts "$feed"
+    done
 
 # Build the sdist and the wheel into dist/.
 build:

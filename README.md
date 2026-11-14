@@ -9,13 +9,24 @@ and [Updated Caltrain Visual Schedule](https://alexgude.com/blog/caltrain-visual
 ## Usage
 
 ```sh
-just fetch   # Download the current feed to data/caltrain-YYYYMMDD.zip.
-just charts  # Draw the chart set from the newest feed into output/.
+just fetch       # Download the current feed to data/caltrain-YYYYMMDD.zip.
+just charts      # Draw the chart set from the newest feed.
+just charts-all  # Draw the chart set from every feed in data/.
 ```
 
-`just charts data/caltrain-20261113.zip` draws from a specific feed. The
-chart set is the weekday schedule (both directions, northbound, southbound,
-to Gilroy, morning, and evening) and the weekend schedule, as PNG and SVG.
+Each feed's charts go to `output/<feed name>/`, such as
+`output/caltrain-20261113/weekday.svg`. The chart set is the weekday
+schedule (both directions, northbound, southbound, to Gilroy, morning, and
+evening), Saturday, and Sunday, as PNG and SVG. Every feed uses the same
+time ranges, so charts of different schedules line up.
+
+`data/` holds three feeds:
+
+| Feed | Schedule | Used in |
+| --- | --- | --- |
+| `caltrain-20170308/` | April 2017 | [Caltrain Visual Schedule](https://alexgude.com/blog/caltrain-visual-schedule/) |
+| `caltrain-20170715/` | July 2017 | [Updated Caltrain Visual Schedule](https://alexgude.com/blog/caltrain-visual-schedule-updates/) |
+| `caltrain-20261113.zip` | January 2026 | This update |
 
 Draw a single chart with the `plot` command:
 
@@ -31,7 +42,10 @@ uv run caltrain-schedule plot data/caltrain-20261113.zip output/chart.svg \
 | `--direction` | `both`, `north`, or `south`. The other direction is drawn faint. |
 | `--start`, `--end` | Time range as `HH:MM`. Hours of 24 or more are after midnight. |
 | `--top`, `--bottom` | GTFS parent station IDs at the chart edges, such as `gilroy`. |
-| `--label` | Station ID to label. Repeat it for more labels. |
+| `--label` | Station ID to name in black. Repeat it for more. Other stations are named in grey. |
+| `--distances` | Feed to take station distances from. The 2017 feeds have none. |
+| `--name` | What the chart shows, for the title. The title adds the month the schedule started. |
+| `--title` | Replaces the whole title. |
 
 Colors follow the 2017 charts: local blue, limited green, express red. South
 County Connector trains, which are new, are purple.
@@ -46,6 +60,9 @@ County Connector trains, which are new, are purple.
   number.
 - Services are chosen from `calendar.txt` and `calendar_dates.txt`, not from
   hard-coded `service_id` strings, so a new feed needs no code change.
+- The 2017 feeds load too. Their stops map to current station IDs by
+  name, and closed stations, such as Atherton, are placed with the 2017
+  mileposts.
 - The 2017 `seaborn-white` style no longer exists in matplotlib. The styling
   is now set explicitly, and seaborn and pandas are no longer dependencies.
 

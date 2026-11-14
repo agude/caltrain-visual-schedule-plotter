@@ -16,11 +16,13 @@ import matplotlib.pyplot as plt
 from caltrain_schedule import __version__
 from caltrain_schedule.gtfs import (
     WEEKDAYS,
+    Feed,
     load_feed,
     services_on_date,
     services_on_weekday,
     station_positions,
 )
+from caltrain_schedule.legacy import fill_positions
 from caltrain_schedule.plot import ChartOptions, plot_marey
 
 # Caltrain's developer page links to this feed, which Trillium Transit hosts.
@@ -99,7 +101,17 @@ def build_parser() -> argparse.ArgumentParser:
         dest="labels",
         help="Station ID to label; repeat for more. Default: the 2017 set.",
     )
-    chart.add_argument("--title", help="Chart title.")
+    chart.add_argument(
+        "--distances",
+        type=Path,
+        help="Feed to take station distances from, for a feed without them, such as 2017's."
+        " Default: the plotted feed.",
+    )
+    chart.add_argument(
+        "--name",
+        help="What the chart shows, for the default title. Default: the day, such as Weekday.",
+    )
+    chart.add_argument("--title", help="Chart title. Default: the name and the schedule's start.")
     return parser
 
 
@@ -115,6 +127,20 @@ def describe_day(args: argparse.Namespace) -> str:
     if args.date is not None:
         return str(args.date.isoformat())
     return str(args.day).capitalize()
+
+
+def default_title(args: argparse.Namespace, feed: Feed, services: set[str]) -> str:
+    """Title a chart with what it shows and when its schedule started.
+
+    A chart for a date shows that date. Otherwise the title names the month
+    the schedule took effect, such as ``Weekday, April 2017``, so charts of
+    different schedules can be told apart.
+    """
+    name = args.name or describe_day(args)
+    if args.date is not None:
+        return f"Caltrain Schedule: {name}"
+    start = min(feed.services[sid].start for sid in services if sid in feed.services)
+    return f"Caltrain Schedule: {name}, {start:%B %Y}"
 
 
 def draw_chart(args: argparse.Namespace) -> None:
@@ -133,7 +159,11 @@ def draw_chart(args: argparse.Namespace) -> None:
     if not trips:
         raise SystemExit(f"caltrain-schedule: no trips run on {describe_day(args)}")
 
-    positions = station_positions(feed, ORIGIN_STATION)
+    distance_feed = feed if args.distances is None else load_feed(args.distances)
+    try:
+        positions = fill_positions(station_positions(distance_feed, ORIGIN_STATION))
+    except ValueError as error:
+        raise SystemExit(f"caltrain-schedule: {error}") from None
     for station in (args.top, args.bottom):
         if station not in positions:
             raise SystemExit(f"caltrain-schedule: unknown station ID: {station}")
@@ -148,7 +178,7 @@ def draw_chart(args: argparse.Namespace) -> None:
 
     fig, ax = plt.subplots(figsize=(WIDTH, HEIGHT))
     plot_marey(ax, trips, feed.stations, positions, options)
-    ax.set_title(args.title or f"Caltrain Schedule: {describe_day(args)}", fontsize=22)
+    ax.set_title(args.title or default_title(args, feed, services), fontsize=22)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(args.output, dpi=DPI, bbox_inches="tight")
     plt.close(fig)

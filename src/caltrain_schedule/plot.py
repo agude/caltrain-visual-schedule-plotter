@@ -11,8 +11,11 @@ from matplotlib.transforms import blended_transform_factory
 from caltrain_schedule.gtfs import Station, Trip
 
 # The Set1 colors from the 2017 charts: local blue, limited green, express
-# (formerly baby bullet) red. South County, which is new, is purple.
+# (formerly baby bullet) red. South County, which is new, is purple. The
+# 2017 feeds name their routes Local, Limited, and Baby Bullet.
 ROUTE_COLORS = {
+    "Local": "#377eb8",
+    "Baby Bullet": "#e41a1c",
     "Local Weekday": "#377eb8",
     "Local Weekend": "#377eb8",
     "Limited": "#4daf4a",
@@ -233,8 +236,11 @@ def plot_marey(
     ax.set_ylim(lower, upper)
     ax.set_yticks([])
 
+    # Only stations that the trips serve, so a closed station, such as
+    # Atherton, appears on old schedules and not on new ones.
+    served = {stop.station_id for trip in trips for stop in trip.stop_times}
     in_view = sorted(
-        (sid for sid, pos in positions.items() if upper <= pos <= lower),
+        (sid for sid in served if upper <= positions[sid] <= lower),
         key=lambda sid: positions[sid],
     )
     major = set(options.labeled_stations)

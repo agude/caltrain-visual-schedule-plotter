@@ -1,1 +1,4 @@
 * text=auto eol=lf
+
+# Feed snapshots stay byte-for-byte as downloaded.
+data/** -text

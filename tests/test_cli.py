@@ -91,5 +91,27 @@ def test_plot_reports_no_trips(feed_dir: Path, tmp_path: Path) -> None:
 
 
 def test_plot_reports_unknown_station(feed_dir: Path, tmp_path: Path) -> None:
-    with pytest.raises(SystemExit, match="unknown station ID: gilroy"):
-        main(["plot", str(feed_dir), str(tmp_path / "x.png"), "--bottom", "gilroy"])
+    with pytest.raises(SystemExit, match="unknown station ID: nowhere"):
+        main(["plot", str(feed_dir), str(tmp_path / "x.png"), "--bottom", "nowhere"])
+
+
+def test_plot_legacy_feed_with_distances_from_another_feed(
+    legacy_dir: Path, feed_zip: Path, tmp_path: Path
+) -> None:
+    output = tmp_path / "legacy.svg"
+    argv = ["plot", str(legacy_dir), str(output), "--distances", str(feed_zip)]
+    assert main(argv) == 0
+    svg = output.read_text(encoding="utf-8")
+    assert "Weekday, July 2017" in svg
+    assert "Atherton" in svg
+
+
+def test_plot_legacy_feed_needs_distances(legacy_dir: Path, tmp_path: Path) -> None:
+    with pytest.raises(SystemExit, match="shape_dist_traveled"):
+        main(["plot", str(legacy_dir), str(tmp_path / "x.svg")])
+
+
+def test_plot_names_chart_in_title(feed_zip: Path, tmp_path: Path) -> None:
+    output = tmp_path / "chart.svg"
+    assert main(["plot", str(feed_zip), str(output), "--name", "Weekday Morning"]) == 0
+    assert "Weekday Morning, January 2026" in output.read_text(encoding="utf-8")
