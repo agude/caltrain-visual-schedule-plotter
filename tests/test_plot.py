@@ -32,8 +32,10 @@ def test_route_color_falls_back_to_grey() -> None:
     assert route_color("Mystery") == "#999999"
 
 
-def test_hour_label_wraps_after_midnight() -> None:
-    assert [hour_label(hour) for hour in (4, 24, 25, 26)] == ["4", "24", "1", "2"]
+def test_hour_label_names_noon_and_midnight() -> None:
+    hours = (4, 11, 12, 13, 23, 24, 25, 26)
+    expected = ["4", "11", "Noon", "13", "23", "Midnight", "1", "2"]
+    assert [hour_label(hour) for hour in hours] == expected
 
 
 def test_time_range_rejects_no_trips() -> None:

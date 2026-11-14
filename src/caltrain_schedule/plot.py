@@ -43,15 +43,18 @@ GRID_COLOR = "0.6"
 OTHER_STATION_COLOR = "0.6"
 OTHER_GRID_COLOR = "0.85"
 STATION_COLOR = "black"
-# Font sizes in points, from the 2017 SVGs: hours 14.4, stations 12, and
-# the title 22. Grey station names are smaller, in the same ratio as
-# matplotlib's "small" to "medium".
-HOUR_SIZE = 14.4
+# Font sizes in points. Stations 12 and the title 22 match the 2017 SVGs.
+# Hours are 12, down from 2017's 14.4, so that "Midnight" fits between 23
+# and 1. Grey station names are smaller, in the same ratio as matplotlib's
+# "small" to "medium".
+HOUR_SIZE = 12.0
 STATION_SIZE = 12.0
 OTHER_STATION_SIZE = 10.0
 TITLE_SIZE = 22.0
-# The key's top edge, in axes coordinates: below the hour labels.
-KEY_OFFSET = -0.055
+# The key's top edge, in axes coordinates: below the axis label.
+KEY_OFFSET = -0.095
+# The 2017 charts had no axis label; bare hours did not read as times.
+X_LABEL = "Time of day"
 # The 2017 charts used Liberation Sans, a metric clone of Arial. DejaVu Sans
 # ships with matplotlib, so it is always available.
 FONTS = ["Liberation Sans", "Arial", "DejaVu Sans"]
@@ -98,8 +101,17 @@ def route_color(route: str) -> str:
 
 
 def hour_label(hour: int) -> str:
-    """Label an hour tick the way the 2017 charts did: 4 through 24, then 1, 2."""
-    return str(hour if hour <= 24 else hour - 24)
+    """Label an hour tick on a 24-hour clock, naming noon and midnight.
+
+    Midnight replaces the 2017 charts' "24", which made the axis look like
+    it restarts at 1. Hours after midnight are 1, 2, and so on.
+    """
+    clock = hour % 24
+    if clock == 12:
+        return "Noon"
+    if clock == 0:
+        return "Midnight"
+    return str(clock)
 
 
 def time_range(trips: Iterable[Trip]) -> tuple[float, float]:
@@ -287,6 +299,7 @@ def plot_marey(
         if hour % 2 == 0:
             ax.axvspan(hour, hour + 1, color="black", alpha=0.03, zorder=0, linewidth=0)
     ax.set_xlim(start, end)
+    ax.set_xlabel(X_LABEL, fontsize=STATION_SIZE)
 
     # Station grid. Distance increases downward, so San Francisco is on top.
     # Every station in view is named on the left: the labeled stations in

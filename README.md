@@ -71,6 +71,9 @@ charts say Express.
   `seaborn-v0_8-white`. The look, including the Liberation Sans font and the
   2017 font sizes, is now set explicitly, and seaborn and pandas are no
   longer dependencies.
+- The hour axis names Noon and Midnight, where 2017 showed 12 and 24, and
+  has a "Time of day" label. The hours are 12 pt instead of 2017's 14.4 pt
+  so that "Midnight" fits between 23 and 1.
 
 ## Development
 
