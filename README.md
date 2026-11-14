@@ -1,0 +1,77 @@
+# caltrain-schedule
+
+Draws Marey charts of the Caltrain schedule from Caltrain's GTFS feed. Each
+train is a line: time runs left to right, and distance from San Francisco runs
+top to bottom. This project updates the 2017 charts in
+[Caltrain Visual Schedule](https://alexgude.com/blog/caltrain-visual-schedule/)
+and [Updated Caltrain Visual Schedule](https://alexgude.com/blog/caltrain-visual-schedule-updates/).
+
+## Usage
+
+```sh
+just fetch   # Download the current feed to data/caltrain-YYYYMMDD.zip.
+just charts  # Draw the chart set from the newest feed into output/.
+```
+
+`just charts data/caltrain-20261113.zip` draws from a specific feed. The
+chart set is the weekday schedule (both directions, northbound, southbound,
+to Gilroy, morning, and evening) and the weekend schedule, as PNG and SVG.
+
+Draw a single chart with the `plot` command:
+
+```sh
+uv run caltrain-schedule plot data/caltrain-20261113.zip output/chart.svg \
+    --day weekday --direction north --start 05:30 --end 10:30
+```
+
+| Option | Effect |
+| --- | --- |
+| `--day` | Regular schedule for `weekday`, `weekend`, or a day name. Ignores holidays. |
+| `--date` | Schedule on a `YYYY-MM-DD` date, with holiday changes applied. |
+| `--direction` | `both`, `north`, or `south`. The other direction is drawn faint. |
+| `--start`, `--end` | Time range as `HH:MM`. Hours of 24 or more are after midnight. |
+| `--top`, `--bottom` | GTFS parent station IDs at the chart edges, such as `gilroy`. |
+| `--label` | Station ID to label. Repeat it for more labels. |
+
+Colors follow the 2017 charts: local blue, limited green, express red. South
+County Connector trains, which are new, are purple.
+
+## Changes from the 2017 notebooks
+
+- Station distances come from the feed's `shape_dist_traveled`, not from
+  hand-entered Wikipedia mileposts. This removes the old error of up to
+  100 m south of Lawrence.
+- Service types come from `routes.txt` (Local Weekday, Local Weekend,
+  Limited, Express, South County), not from the leading digit of the train
+  number.
+- Services are chosen from `calendar.txt` and `calendar_dates.txt`, not from
+  hard-coded `service_id` strings, so a new feed needs no code change.
+- The 2017 `seaborn-white` style no longer exists in matplotlib. The styling
+  is now set explicitly, and seaborn and pandas are no longer dependencies.
+
+## Development
+
+Requires [uv](https://docs.astral.sh/uv/) 0.13 or newer and [just](https://just.systems/).
+
+The `.python-version` file selects Python 3.15. uv 0.13 or newer can
+download its final release. The lower uv minimum in `pyproject.toml` lets
+Dependabot update the lock on Python 3.11; CI tests that minimum.
+
+```sh
+just sync           # Install the locked development environment.
+just hooks-install  # Install the pre-commit hook, which runs `just lint`.
+just check          # Run lint, type-check, and test.
+```
+
+Run `just` to list every recipe.
+
+## Releasing
+
+```sh
+just release patch  # Or minor or major. Runs `just check`, then commits and tags.
+git push origin HEAD vX.Y.Z
+```
+
+## License
+
+[CC0 1.0 Universal](LICENSE.md)
