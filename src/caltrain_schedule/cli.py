@@ -25,7 +25,7 @@ from caltrain_schedule.gtfs import (
     station_positions,
 )
 from caltrain_schedule.legacy import fill_positions
-from caltrain_schedule.plot import FONTS, TITLE_SIZE, ChartOptions, plot_marey
+from caltrain_schedule.plot import FONTS, TITLE_PAD_WITH_KEY, TITLE_SIZE, ChartOptions, plot_marey
 
 # Caltrain's developer page links to this feed, which Trillium Transit hosts.
 FEED_URL = "https://data.trilliumtransit.com/gtfs/caltrain-ca-us/caltrain-ca-us.zip"
@@ -115,7 +115,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--key",
         action=argparse.BooleanOptionalAction,
         default=True,
-        help="Draw a key to the route colors below the chart. Default: on.",
+        help="Name the routes in their line colors under the title. Default: on.",
     )
     chart.add_argument(
         "--distances",
@@ -213,7 +213,11 @@ def draw_chart(args: argparse.Namespace) -> None:
     with mpl.rc_context({"font.family": "sans-serif", "font.sans-serif": FONTS}):
         fig, ax = plt.subplots(figsize=(WIDTH, HEIGHT))
         plot_marey(ax, trips, feed.stations, positions, options)
-        ax.set_title(args.title or default_title(args, feed, services), fontsize=TITLE_SIZE)
+        ax.set_title(
+            args.title or default_title(args, feed, services),
+            fontsize=TITLE_SIZE,
+            pad=TITLE_PAD_WITH_KEY if args.key else None,
+        )
         fig.savefig(args.output, dpi=DPI, bbox_inches="tight")
         plt.close(fig)
 

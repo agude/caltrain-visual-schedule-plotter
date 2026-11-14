@@ -9,6 +9,7 @@ mpl.use("Agg")
 
 import matplotlib.pyplot as plt
 import pytest
+from matplotlib.offsetbox import AnchoredOffsetbox
 
 from caltrain_schedule.gtfs import load_feed, station_positions
 from caltrain_schedule.plot import (
@@ -20,6 +21,7 @@ from caltrain_schedule.plot import (
     fit_labels,
     hour_label,
     key_entries,
+    key_names,
     plot_marey,
     route_color,
     spread_labels,
@@ -163,11 +165,10 @@ def test_key_entries_merge_and_order_routes() -> None:
 def test_plot_marey_draws_key_unless_turned_off(feed_dir: Path) -> None:
     feed = load_feed(feed_dir)
     positions = station_positions(feed, "san_francisco")
-    for key, expected in ((True, ["Local", "Express"]), (False, None)):
+    trips = [trip for trip in feed.trips if trip.service_id == "weekday"]
+    for key, expected in ((True, [["Local", "Express"]]), (False, [])):
         fig, ax = plt.subplots()
-        trips = [trip for trip in feed.trips if trip.service_id == "weekday"]
         plot_marey(ax, trips, feed.stations, positions, ChartOptions(key=key))
-        legend = ax.get_legend()
-        names = None if legend is None else [text.get_text() for text in legend.get_texts()]
-        assert names == expected
+        keys = [key_names(artist) for artist in ax.artists if isinstance(artist, AnchoredOffsetbox)]
+        assert keys == expected
         plt.close(fig)

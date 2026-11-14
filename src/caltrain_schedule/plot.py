@@ -4,8 +4,9 @@ import math
 from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 
+from matplotlib.artist import Artist
 from matplotlib.axes import Axes
-from matplotlib.lines import Line2D
+from matplotlib.offsetbox import AnchoredOffsetbox, HPacker, TextArea
 from matplotlib.transforms import blended_transform_factory
 
 from caltrain_schedule.gtfs import Station, Trip
@@ -51,8 +52,12 @@ HOUR_SIZE = 12.0
 STATION_SIZE = 12.0
 OTHER_STATION_SIZE = 10.0
 TITLE_SIZE = 22.0
-# The key's top edge, in axes coordinates: below the axis label.
-KEY_OFFSET = -0.095
+KEY_SIZE = 11.0
+KEY_SEPARATOR = "·"
+KEY_SPACING = 8
+# Title padding, in points, that leaves room for the key between the title
+# and the frame.
+TITLE_PAD_WITH_KEY = 26.0
 # The 2017 charts had no axis label; bare hours did not read as times.
 X_LABEL = "Time of day"
 # The 2017 charts used Liberation Sans, a metric clone of Arial. DejaVu Sans
@@ -91,7 +96,7 @@ class ChartOptions:
     # Name the other served stations in grey. Their grid lines are drawn
     # either way.
     other_names: bool = True
-    # Draw a key to the route colors below the chart.
+    # Draw a key to the route colors between the title and the frame.
     key: bool = True
 
 
@@ -224,29 +229,42 @@ def key_entries(routes: Iterable[str]) -> list[tuple[str, str]]:
     return sorted(names.items(), key=lambda item: (order.get(item[0], len(order)), item[0]))
 
 
-def draw_key(ax: Axes, routes: Iterable[str]) -> None:
-    """Draw a one-row key to the route colors, centered below the hour labels."""
-    handles = [
-        Line2D(
-            [],
-            [],
-            color=color,
-            marker="o",
-            markersize=4,
-            markerfacecolor="w",
-            markeredgecolor=color,
-            label=name,
+def draw_key(ax: Axes, routes: Iterable[str]) -> AnchoredOffsetbox:
+    """Draw a key as a subtitle: route names in their line colors, above the frame.
+
+    The title needs ``TITLE_PAD_WITH_KEY`` points of padding to clear it.
+    """
+    entries = key_entries(routes)
+    words: list[Artist] = []
+    for index, (name, color) in enumerate(entries):
+        if index:
+            words.append(
+                TextArea(KEY_SEPARATOR, textprops={"color": GRID_COLOR, "fontsize": KEY_SIZE})
+            )
+        words.append(
+            TextArea(name, textprops={"color": color, "fontsize": KEY_SIZE, "fontweight": "bold"})
         )
-        for name, color in key_entries(routes)
-    ]
-    ax.legend(
-        handles=handles,
-        loc="upper center",
-        bbox_to_anchor=(0.5, KEY_OFFSET),
-        ncols=len(handles),
+    key = AnchoredOffsetbox(
+        loc="lower center",
+        child=HPacker(children=words, sep=KEY_SPACING, pad=0),
+        bbox_to_anchor=(0.5, 1.0),
+        bbox_transform=ax.transAxes,
         frameon=False,
-        fontsize=STATION_SIZE,
+        pad=0.3,
     )
+    ax.add_artist(key)
+    return key
+
+
+def key_names(key: AnchoredOffsetbox) -> list[str]:
+    """Return the route names in a key drawn by ``draw_key``."""
+    row = key.get_child()
+    assert row is not None, "draw_key always gives the key a row"
+    return [
+        word.get_text()
+        for word in row.get_children()
+        if isinstance(word, TextArea) and word.get_text() != KEY_SEPARATOR
+    ]
 
 
 def plot_marey(
