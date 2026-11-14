@@ -53,8 +53,8 @@ STATION_SIZE = 12.0
 OTHER_STATION_SIZE = 10.0
 TITLE_SIZE = 22.0
 KEY_SIZE = 11.0
-KEY_SEPARATOR = "·"
-KEY_SPACING = 8
+# Space between route names, in points.
+KEY_SPACING = 16
 # Title padding, in points, that leaves room for the key between the title
 # and the frame.
 TITLE_PAD_WITH_KEY = 26.0
@@ -234,16 +234,10 @@ def draw_key(ax: Axes, routes: Iterable[str]) -> AnchoredOffsetbox:
 
     The title needs ``TITLE_PAD_WITH_KEY`` points of padding to clear it.
     """
-    entries = key_entries(routes)
-    words: list[Artist] = []
-    for index, (name, color) in enumerate(entries):
-        if index:
-            words.append(
-                TextArea(KEY_SEPARATOR, textprops={"color": GRID_COLOR, "fontsize": KEY_SIZE})
-            )
-        words.append(
-            TextArea(name, textprops={"color": color, "fontsize": KEY_SIZE, "fontweight": "bold"})
-        )
+    words: list[Artist] = [
+        TextArea(name, textprops={"color": color, "fontsize": KEY_SIZE, "fontweight": "bold"})
+        for name, color in key_entries(routes)
+    ]
     key = AnchoredOffsetbox(
         loc="lower center",
         child=HPacker(children=words, sep=KEY_SPACING, pad=0),
@@ -260,11 +254,7 @@ def key_names(key: AnchoredOffsetbox) -> list[str]:
     """Return the route names in a key drawn by ``draw_key``."""
     row = key.get_child()
     assert row is not None, "draw_key always gives the key a row"
-    return [
-        word.get_text()
-        for word in row.get_children()
-        if isinstance(word, TextArea) and word.get_text() != KEY_SEPARATOR
-    ]
+    return [word.get_text() for word in row.get_children() if isinstance(word, TextArea)]
 
 
 def plot_marey(
