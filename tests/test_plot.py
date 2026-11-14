@@ -86,15 +86,17 @@ def test_plot_marey_rejects_unknown_direction(feed_dir: Path) -> None:
     plt.close(fig)
 
 
-def test_edge_limit_makes_room_for_a_close_station() -> None:
-    # San Jose Diridon at 46.8 mi, Tamien 1.8 mi farther.
-    assert edge_limit(46.8, [0.0, 46.8, 48.6], 1) == pytest.approx(49.6)
+def test_edge_limit_pads_past_the_outermost_station() -> None:
+    # San Jose Diridon at 46.8 mi, Tamien 1.8 mi farther: pad past Tamien.
+    assert edge_limit(46.8, [0.0, 46.8, 48.6], 1) == pytest.approx(50.6)
     # Gilroy is the last station.
     assert edge_limit(76.8, [0.0, 76.8], 1) == pytest.approx(78.8)
-    # San Francisco at the top, with 22nd Street 1.6 mi south of it.
+    # San Francisco at the top, with only stations south of it.
     assert edge_limit(0.0, [0.0, 1.6], -1) == pytest.approx(-2.0)
     # A station farther than the pad does not move the limit.
     assert edge_limit(46.8, [46.8, 51.7], 1) == pytest.approx(48.8)
+    # Close stations chain: each is within the pad of the one before.
+    assert edge_limit(10.0, [10.0, 11.5, 13.0, 16.0], 1) == pytest.approx(15.0)
 
 
 def test_spread_labels_leaves_spaced_labels() -> None:

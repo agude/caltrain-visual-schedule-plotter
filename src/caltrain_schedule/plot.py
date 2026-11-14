@@ -77,7 +77,6 @@ FRAME_WIDTH = 1.25
 PAD_SECONDS = 600
 # Miles of space past the top and bottom stations.
 EDGE_PAD = 2.0
-BEYOND_PAD = 1.0
 
 
 @dataclass(frozen=True)
@@ -137,17 +136,17 @@ def time_range(trips: Iterable[Trip]) -> tuple[float, float]:
 def edge_limit(edge: float, positions: Iterable[float], outward: int) -> float:
     """Return the y limit beyond the edge station, in miles.
 
-    The limit is ``EDGE_PAD`` miles past the edge station. When the next
-    station past the edge is within that pad, as Tamien is past San Jose
-    Diridon, the limit moves to ``BEYOND_PAD`` miles past that station, so
-    its stop markers are not cut off. ``outward`` is 1 for the far edge
-    and -1 for the near edge.
+    The outermost station drawn is the edge station, or a station past it
+    that is closer than ``EDGE_PAD``, as Tamien is past San Jose Diridon;
+    it would otherwise sit on the frame. The limit is ``EDGE_PAD`` miles
+    past that station, so both ends of the chart have the same margin.
+    ``outward`` is 1 for the far edge and -1 for the near edge.
     """
-    beyond = [outward * (pos - edge) for pos in positions if outward * (pos - edge) > 0]
-    pad = EDGE_PAD
-    if beyond and min(beyond) < EDGE_PAD:
-        pad = max(EDGE_PAD, min(beyond) + BEYOND_PAD)
-    return edge + outward * pad
+    outermost = edge
+    for pos in sorted(positions, key=lambda pos: outward * pos):
+        if 0 < outward * (pos - outermost) < EDGE_PAD:
+            outermost = pos
+    return outermost + outward * EDGE_PAD
 
 
 def spread_labels(
