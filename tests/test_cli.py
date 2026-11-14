@@ -157,3 +157,9 @@ def test_plot_without_other_names(feed_zip: Path, tmp_path: Path) -> None:
     svg = output.read_text(encoding="utf-8")
     assert "San Francisco" in svg
     assert "Millbrae" not in svg
+
+
+def test_plot_without_key(feed_zip: Path, tmp_path: Path) -> None:
+    output = tmp_path / "chart.svg"
+    assert main(["plot", str(feed_zip), str(output), "--no-key"]) == 0
+    assert "Express" not in output.read_text(encoding="utf-8")

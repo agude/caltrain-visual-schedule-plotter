@@ -5,6 +5,7 @@ from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 
 from matplotlib.axes import Axes
+from matplotlib.lines import Line2D
 from matplotlib.transforms import blended_transform_factory
 
 from caltrain_schedule.gtfs import Station, Trip
@@ -23,6 +24,19 @@ ROUTE_COLORS = {
 }
 UNKNOWN_ROUTE_COLOR = "#999999"
 
+# Key entries, in the order they appear. Routes with the same service type,
+# such as Local Weekday and Local Weekend, share an entry.
+KEY_NAMES = {
+    "Local": "Local",
+    "Local Weekday": "Local",
+    "Local Weekend": "Local",
+    "Limited": "Limited",
+    "Baby Bullet": "Baby Bullet",
+    "Express": "Express",
+    "South County": "South County",
+}
+KEY_ORDER = ("Local", "Limited", "Baby Bullet", "Express", "South County")
+
 FADED_ALPHA = 0.2
 GRID_COLOR = "0.6"
 # Stations outside ``labeled_stations`` get a lighter label and grid line.
@@ -36,6 +50,8 @@ HOUR_SIZE = 14.4
 STATION_SIZE = 12.0
 OTHER_STATION_SIZE = 10.0
 TITLE_SIZE = 22.0
+# The key's top edge, in axes coordinates: below the hour labels.
+KEY_OFFSET = -0.055
 # The 2017 charts used Liberation Sans, a metric clone of Arial. DejaVu Sans
 # ships with matplotlib, so it is always available.
 FONTS = ["Liberation Sans", "Arial", "DejaVu Sans"]
@@ -72,6 +88,8 @@ class ChartOptions:
     # Name the other served stations in grey. Their grid lines are drawn
     # either way.
     other_names: bool = True
+    # Draw a key to the route colors below the chart.
+    key: bool = True
 
 
 def route_color(route: str) -> str:
@@ -182,6 +200,41 @@ def fit_labels(
         ):
             kept = trial
     return dict(zip(kept, spread(kept), strict=True))
+
+
+def key_entries(routes: Iterable[str]) -> list[tuple[str, str]]:
+    """Return the (name, color) key entries for routes, in key order.
+
+    A route without a key name keeps its own name and is listed last.
+    """
+    names = {KEY_NAMES.get(route, route): route_color(route) for route in routes}
+    order = {name: index for index, name in enumerate(KEY_ORDER)}
+    return sorted(names.items(), key=lambda item: (order.get(item[0], len(order)), item[0]))
+
+
+def draw_key(ax: Axes, routes: Iterable[str]) -> None:
+    """Draw a one-row key to the route colors, centered below the hour labels."""
+    handles = [
+        Line2D(
+            [],
+            [],
+            color=color,
+            marker="o",
+            markersize=4,
+            markerfacecolor="w",
+            markeredgecolor=color,
+            label=name,
+        )
+        for name, color in key_entries(routes)
+    ]
+    ax.legend(
+        handles=handles,
+        loc="upper center",
+        bbox_to_anchor=(0.5, KEY_OFFSET),
+        ncols=len(handles),
+        frameon=False,
+        fontsize=STATION_SIZE,
+    )
 
 
 def plot_marey(
@@ -295,6 +348,8 @@ def plot_marey(
 
     ax.tick_params(length=0)
     ax.tick_params(axis="x", labelsize=HOUR_SIZE)
+    if options.key:
+        draw_key(ax, (trip.route for trip in trips))
     for spine in ax.spines.values():
         spine.set_color(FRAME_COLOR)
         spine.set_linewidth(FRAME_WIDTH)

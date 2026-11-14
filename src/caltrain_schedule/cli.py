@@ -112,6 +112,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Name the other served stations in grey. Their grid lines stay. Default: on.",
     )
     chart.add_argument(
+        "--key",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Draw a key to the route colors below the chart. Default: on.",
+    )
+    chart.add_argument(
         "--distances",
         type=Path,
         help="Feed to take station distances from, for a feed without them, such as 2017's."
@@ -200,6 +206,7 @@ def draw_chart(args: argparse.Namespace) -> None:
         bottom_station=args.bottom,
         labeled_stations=args.labels or DEFAULT_LABELS,
         other_names=args.other_names,
+        key=args.key,
     )
 
     args.output.parent.mkdir(parents=True, exist_ok=True)

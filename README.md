@@ -44,12 +44,15 @@ uv run caltrain-schedule plot data/caltrain-20261113 output/chart.svg \
 | `--top`, `--bottom` | GTFS parent station IDs at the chart edges, such as `gilroy`. |
 | `--label` | Station ID to name in black. Repeat it for more. Other stations are named in grey. |
 | `--no-other-names` | Name only the `--label` stations. The other stations keep their grey grid lines. |
+| `--no-key` | Leave out the key to the route colors below the chart. |
 | `--distances` | Feed to take station distances from. The 2017 feeds have none. |
 | `--name` | What the chart shows, for the title. The title adds the month the schedule started. |
 | `--title` | Replaces the whole title. |
 
 Colors follow the 2017 charts: local blue, limited green, express red. South
-County Connector trains, which are new, are purple.
+County Connector trains, which are new, are purple. A key below each chart
+names the routes on it, so the 2017 charts say Baby Bullet where the 2026
+charts say Express.
 
 ## Changes from the 2017 notebooks
 

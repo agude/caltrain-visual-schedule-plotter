@@ -19,6 +19,7 @@ from caltrain_schedule.plot import (
     edge_limit,
     fit_labels,
     hour_label,
+    key_entries,
     plot_marey,
     route_color,
     spread_labels,
@@ -144,3 +145,27 @@ def test_plot_marey_can_leave_out_other_names(feed_dir: Path) -> None:
     millbrae = positions["place_MLBR"]
     assert any(np.array_equal(line.get_ydata(), [millbrae, millbrae]) for line in ax.get_lines())
     plt.close(fig)
+
+
+def test_key_entries_merge_and_order_routes() -> None:
+    routes = ["South County", "Local Weekend", "Express", "Local Weekday", "Mystery", "Limited"]
+    assert key_entries(routes) == [
+        ("Local", "#377eb8"),
+        ("Limited", "#4daf4a"),
+        ("Express", "#e41a1c"),
+        ("South County", "#984ea3"),
+        ("Mystery", "#999999"),
+    ]
+
+
+def test_plot_marey_draws_key_unless_turned_off(feed_dir: Path) -> None:
+    feed = load_feed(feed_dir)
+    positions = station_positions(feed, "san_francisco")
+    for key, expected in ((True, ["Local", "Express"]), (False, None)):
+        fig, ax = plt.subplots()
+        trips = [trip for trip in feed.trips if trip.service_id == "weekday"]
+        plot_marey(ax, trips, feed.stations, positions, ChartOptions(key=key))
+        legend = ax.get_legend()
+        names = None if legend is None else [text.get_text() for text in legend.get_texts()]
+        assert names == expected
+        plt.close(fig)
