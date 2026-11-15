@@ -311,8 +311,7 @@ def plot_marey(
     # Station grid. Distance increases downward, so San Francisco is on top.
     # Every station in view is named on the left: the labeled stations in
     # black, the rest smaller and in lighter grey. Where names would
-    # overlap they are spread apart, mostly by moving the grey names, and a
-    # short leader line joins each name to its station.
+    # overlap they are spread apart, mostly by moving the grey names.
     near, far = sorted((positions[options.top_station], positions[options.bottom_station]))
     lower = edge_limit(far, positions.values(), 1)
     upper = edge_limit(near, positions.values(), -1)
@@ -356,13 +355,6 @@ def plot_marey(
             va="center_baseline",
             color=STATION_COLOR if is_major else OTHER_STATION_COLOR,
             fontsize=STATION_SIZE if is_major else OTHER_STATION_SIZE,
-            arrowprops={
-                "arrowstyle": "-",
-                "color": GRID_COLOR if is_major else OTHER_GRID_COLOR,
-                "linewidth": 0.4,
-                "shrinkA": 1,
-                "shrinkB": 0,
-            },
             annotation_clip=False,
         )
 
