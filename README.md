@@ -42,8 +42,7 @@ uv run caltrain-schedule plot data/caltrain-20261113 output/chart.svg \
 | `--direction` | `both`, `north`, or `south`. The other direction is drawn faint. |
 | `--start`, `--end` | Time range as `HH:MM`. Hours of 24 or more are after midnight. |
 | `--top`, `--bottom` | GTFS parent station IDs at the chart edges, such as `gilroy`. |
-| `--label` | Station ID to name in black. Repeat it for more. Other stations are named in grey. |
-| `--no-other-names` | Name only the `--label` stations. The other stations keep their grey grid lines. |
+| `--height` | Chart height in inches. Default: 7. Taller charts spread close station names less. |
 | `--no-key` | Leave out the key: the route names in their line colors under the title. |
 | `--distances` | Feed to take station distances from. The 2017 feeds have none. |
 | `--name` | What the chart shows, for the title. The title adds the month the schedule started. |
@@ -74,6 +73,11 @@ charts say Express.
 - The hour axis names Noon and Midnight, where 2017 showed 12 and 24, and
   has a "Time of day" label. The hours are 12 pt instead of 2017's 14.4 pt
   so that "Midnight" fits between 23 and 1.
+- Every served station is named, in one small style, on its grid line.
+  The 2017 charts named the baby bullet stops in bold and the rest in grey.
+  That split is gone: the bullet stops changed by 2026, and each train's
+  stop markers already show where it stops. Only names that would overlap,
+  such as Hayward Park and Hillsdale, move apart.
 
 ## Development
 

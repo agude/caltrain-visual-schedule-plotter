@@ -111,7 +111,7 @@ def test_plot_accepts_chart_options(feed_dir: Path, tmp_path: Path) -> None:
         "--start=05:00",
         "--end=25:00",
         "--bottom=place_MLBR",
-        "--label=place_MLBR",
+        "--height=9",
         "--title=Test",
     ]
     assert main(argv) == 0
@@ -148,15 +148,6 @@ def test_plot_names_chart_in_title(feed_zip: Path, tmp_path: Path) -> None:
     output = tmp_path / "chart.svg"
     assert main(["plot", str(feed_zip), str(output), "--name", "Weekday Morning"]) == 0
     assert "Weekday Morning, January 2026" in output.read_text(encoding="utf-8")
-
-
-def test_plot_without_other_names(feed_zip: Path, tmp_path: Path) -> None:
-    output = tmp_path / "chart.svg"
-    argv = ["plot", str(feed_zip), str(output), "--label=san_francisco", "--no-other-names"]
-    assert main(argv) == 0
-    svg = output.read_text(encoding="utf-8")
-    assert "San Francisco" in svg
-    assert "Millbrae" not in svg
 
 
 def test_plot_without_key(feed_zip: Path, tmp_path: Path) -> None:

@@ -14,11 +14,9 @@ from matplotlib.offsetbox import AnchoredOffsetbox
 from caltrain_schedule.gtfs import load_feed, station_positions
 from caltrain_schedule.plot import (
     FADED_ALPHA,
-    OTHER_STATION_COLOR,
     STATION_COLOR,
     ChartOptions,
     edge_limit,
-    fit_labels,
     hour_label,
     key_entries,
     key_names,
@@ -50,18 +48,14 @@ def test_plot_marey_fades_other_direction(feed_dir: Path) -> None:
     trips = [trip for trip in feed.trips if trip.service_id == "weekday"]
     positions = station_positions(feed, "san_francisco")
     fig, ax = plt.subplots()
-    options = ChartOptions(direction="south", labeled_stations=("san_francisco", "nowhere"))
+    options = ChartOptions(direction="south")
     plot_marey(ax, trips, feed.stations, positions, options)
 
     alphas = {line.get_label(): line.get_alpha() for line in ax.get_lines() if line.get_label()}
     assert alphas["Train 101"] == 1.0
     assert alphas["Train 102"] == FADED_ALPHA
     colors = {text.get_text(): text.get_color() for text in ax.texts}
-    assert colors == {
-        "San Francisco": STATION_COLOR,
-        "Millbrae": OTHER_STATION_COLOR,
-        "San Jose Diridon": OTHER_STATION_COLOR,
-    }
+    assert colors == dict.fromkeys(("San Francisco", "Millbrae", "San Jose Diridon"), STATION_COLOR)
     # San Francisco is on top: the y axis runs downward.
     bottom, top = ax.get_ylim()
     assert bottom > top
@@ -109,17 +103,15 @@ def test_spread_labels_centers_crowded_groups() -> None:
     assert spread == pytest.approx([0.0, 9.15, 10.15, 11.15, 12.15])
 
 
-def test_spread_labels_moves_light_labels_more() -> None:
-    spread = spread_labels([10.0, 10.5], min_gap=1.0, weights=[1.0, 9.0])
-    # The heavy label moves 0.05 and the light one 0.45: nine times as far.
-    assert spread == pytest.approx([9.55, 10.55])
+def test_spread_labels_moves_a_close_pair_equally() -> None:
+    assert spread_labels([10.0, 10.5], min_gap=1.0) == pytest.approx([9.75, 10.75])
 
 
 def test_plot_marey_names_stations_in_view_on_the_left(feed_dir: Path) -> None:
     feed = load_feed(feed_dir)
     positions = station_positions(feed, "san_francisco")
     fig, ax = plt.subplots()
-    options = ChartOptions(bottom_station="place_MLBR", labeled_stations=("sj_diridon",))
+    options = ChartOptions(bottom_station="place_MLBR")
     plot_marey(ax, feed.trips, feed.stations, positions, options)
     # San Jose is out of view, so it gets no name and does not stretch the axis.
     assert ax.get_ylim()[0] < positions["sj_diridon"]
@@ -128,26 +120,14 @@ def test_plot_marey_names_stations_in_view_on_the_left(feed_dir: Path) -> None:
     plt.close(fig)
 
 
-def test_fit_labels_drops_minor_labels_that_crowd_major_ones() -> None:
-    # A minor label between two close major labels does not fit, and one
-    # with room does.
-    fitted = fit_labels(
-        [0.0, 0.8, 1.5, 5.0],
-        [True, False, True, False],
-        min_gap=1.0,
-        max_major_shift=0.1,
-    )
-    assert fitted == pytest.approx({0: 0.0, 2: 1.5, 3: 5.0})
-
-
-def test_plot_marey_can_leave_out_other_names(feed_dir: Path) -> None:
+def test_plot_marey_puts_names_with_room_on_their_lines(feed_dir: Path) -> None:
     feed = load_feed(feed_dir)
     positions = station_positions(feed, "san_francisco")
     fig, ax = plt.subplots()
-    options = ChartOptions(labeled_stations=("san_francisco",), other_names=False)
-    plot_marey(ax, feed.trips, feed.stations, positions, options)
-    assert [text.get_text() for text in ax.texts] == ["San Francisco"]
-    # Millbrae keeps its grid line.
+    plot_marey(ax, feed.trips, feed.stations, positions, ChartOptions())
+    names = {text.get_text(): text.get_position()[1] for text in ax.texts}
+    assert names["Millbrae"] == pytest.approx(positions["place_MLBR"])
+    # Every named station has a grid line.
     millbrae = positions["place_MLBR"]
     assert any(np.array_equal(line.get_ydata(), [millbrae, millbrae]) for line in ax.get_lines())
     plt.close(fig)

@@ -1,7 +1,7 @@
 """Draw a Marey chart: time on the x axis, distance along the line on the y axis."""
 
 import math
-from collections.abc import Collection, Iterable, Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 
 from matplotlib.artist import Artist
@@ -40,17 +40,15 @@ KEY_ORDER = ("Local", "Limited", "Baby Bullet", "Express", "South County")
 
 FADED_ALPHA = 0.2
 GRID_COLOR = "0.6"
-# Stations outside ``labeled_stations`` get a lighter label and grid line.
-OTHER_STATION_COLOR = "0.6"
-OTHER_GRID_COLOR = "0.85"
-STATION_COLOR = "black"
-# Font sizes in points. Stations 12 and the title 22 match the 2017 SVGs.
-# Hours are 12, down from 2017's 14.4, so that "Midnight" fits between 23
-# and 1. Grey station names are smaller, in the same ratio as matplotlib's
-# "small" to "medium".
+# Every station gets the same light grid line and dark grey name.
+STATION_GRID_COLOR = "0.85"
+STATION_COLOR = "0.25"
+# Font sizes in points. The title 22 matches the 2017 SVGs. Hours are 12,
+# down from 2017's 14.4, so that "Midnight" fits between 23 and 1. Station
+# names are small enough to sit on their grid lines: only the closest
+# stations, such as Hayward Park and Hillsdale, push their names apart.
 HOUR_SIZE = 12.0
-STATION_SIZE = 12.0
-OTHER_STATION_SIZE = 10.0
+STATION_SIZE = 7.5
 TITLE_SIZE = 22.0
 KEY_SIZE = 11.0
 # Space between route names, in points.
@@ -63,14 +61,10 @@ X_LABEL = "Time of day"
 # The 2017 charts used Liberation Sans, a metric clone of Arial. DejaVu Sans
 # ships with matplotlib, so it is always available.
 FONTS = ["Liberation Sans", "Arial", "DejaVu Sans"]
-# Label spacing, as a multiple of the labeled stations' font size.
-LABEL_LINE_HEIGHT = 1.15
-# How much more a labeled station's name resists moving than a grey one's.
-MAJOR_LABEL_WEIGHT = 20.0
-# How far a labeled station's name may move, as a fraction of a line.
-MAX_MAJOR_SHIFT = 0.35
+# Least spacing between station names, as a multiple of their font size.
+LABEL_LINE_HEIGHT = 1.25
 # Gap between the station names and the axes, as a fraction of its width.
-LEADER_LENGTH = 0.012
+LABEL_GAP = 0.006
 # The frame of matplotlib's former seaborn-white style.
 FRAME_COLOR = "#262626"
 FRAME_WIDTH = 1.25
@@ -91,10 +85,6 @@ class ChartOptions:
     # The stations at the top and bottom of the chart.
     top_station: str = "san_francisco"
     bottom_station: str = "sj_diridon"
-    labeled_stations: Collection[str] = ()
-    # Name the other served stations in grey. Their grid lines are drawn
-    # either way.
-    other_names: bool = True
     # Draw a key to the route colors between the title and the frame.
     key: bool = True
 
@@ -149,25 +139,18 @@ def edge_limit(edge: float, positions: Iterable[float], outward: int) -> float:
     return outermost + outward * EDGE_PAD
 
 
-def spread_labels(
-    targets: Sequence[float],
-    min_gap: float,
-    weights: Sequence[float] | None = None,
-) -> list[float]:
+def spread_labels(targets: Sequence[float], min_gap: float) -> list[float]:
     """Move sorted label positions apart until neighbors are ``min_gap`` apart.
 
     Labels that would overlap form a group of evenly spaced labels. Each
-    group is placed to minimize the weighted squared distance of its labels
-    from their targets, so a heavy label moves less than a light one.
-    Groups merge until none overlap.
+    group is centered on its targets, which minimizes the squared distance
+    of its labels from them. Groups merge until none overlap. Labels with
+    room stay on their targets.
     """
-    if weights is None:
-        weights = [1.0] * len(targets)
 
     def first_label(group: list[int]) -> float:
-        # The weighted mean of each target, less its offset in the group.
-        total = sum(weights[i] for i in group)
-        return sum(weights[i] * (targets[i] - k * min_gap) for k, i in enumerate(group)) / total
+        # The mean of each target, less its offset in the group.
+        return sum(targets[i] - k * min_gap for k, i in enumerate(group)) / len(group)
 
     groups: list[list[int]] = []
     for index in range(len(targets)):
@@ -185,37 +168,6 @@ def spread_labels(
         start = first_label(group)
         spread.extend(start + k * min_gap for k in range(len(group)))
     return spread
-
-
-def fit_labels(
-    targets: Sequence[float],
-    major: Sequence[bool],
-    min_gap: float,
-    max_major_shift: float,
-) -> dict[int, float]:
-    """Choose which labels to show and where, keyed by index into ``targets``.
-
-    Every major label is shown. Minor labels are added in order, and each
-    one is kept only if the spread labels leave every major label within
-    ``max_major_shift`` of its target. Where the line is too crowded, some
-    minor labels are left out.
-    """
-    weights = [MAJOR_LABEL_WEIGHT if is_major else 1.0 for is_major in major]
-
-    def spread(indices: list[int]) -> list[float]:
-        return spread_labels([targets[i] for i in indices], min_gap, [weights[i] for i in indices])
-
-    kept = [i for i, is_major in enumerate(major) if is_major]
-    for candidate in (i for i, is_major in enumerate(major) if not is_major):
-        trial = sorted([*kept, candidate])
-        positions = spread(trial)
-        if all(
-            abs(pos - targets[i]) <= max_major_shift
-            for i, pos in zip(trial, positions, strict=True)
-            if major[i]
-        ):
-            kept = trial
-    return dict(zip(kept, spread(kept), strict=True))
 
 
 def key_entries(routes: Iterable[str]) -> list[tuple[str, str]]:
@@ -306,12 +258,11 @@ def plot_marey(
         if hour % 2 == 0:
             ax.axvspan(hour, hour + 1, color="black", alpha=0.03, zorder=0, linewidth=0)
     ax.set_xlim(start, end)
-    ax.set_xlabel(X_LABEL, fontsize=STATION_SIZE)
+    ax.set_xlabel(X_LABEL, fontsize=HOUR_SIZE)
 
     # Station grid. Distance increases downward, so San Francisco is on top.
-    # Every station in view is named on the left: the labeled stations in
-    # black, the rest smaller and in lighter grey. Where names would
-    # overlap they are spread apart, mostly by moving the grey names.
+    # Every served station in view is named on the left, on its grid line.
+    # Where names would overlap they are spread apart.
     near, far = sorted((positions[options.top_station], positions[options.bottom_station]))
     lower = edge_limit(far, positions.values(), 1)
     upper = edge_limit(near, positions.values(), -1)
@@ -325,37 +276,24 @@ def plot_marey(
         (sid for sid in served if upper <= positions[sid] <= lower),
         key=lambda sid: positions[sid],
     )
-    major = set(options.labeled_stations)
     for sid in in_view:
-        color = GRID_COLOR if sid in major else OTHER_GRID_COLOR
-        ax.axhline(positions[sid], color=color, linewidth=0.4, zorder=1)
+        ax.axhline(positions[sid], color=STATION_GRID_COLOR, linewidth=0.4, zorder=1)
 
-    fontsize = STATION_SIZE
     _, axes_height = ax.get_window_extent().size
     points_per_mile = axes_height * 72 / ax.figure.dpi / (lower - upper)
-    min_gap = fontsize * LABEL_LINE_HEIGHT / points_per_mile
-    named = [sid for sid in in_view if options.other_names or sid in major]
-    label_positions = fit_labels(
-        [positions[sid] for sid in named],
-        [sid in major for sid in named],
-        min_gap=min_gap,
-        max_major_shift=MAX_MAJOR_SHIFT * min_gap,
-    )
+    min_gap = STATION_SIZE * LABEL_LINE_HEIGHT / points_per_mile
+    label_positions = spread_labels([positions[sid] for sid in in_view], min_gap)
     left_edge = blended_transform_factory(ax.transAxes, ax.transData)
-    for index, y in label_positions.items():
-        sid = named[index]
-        is_major = sid in major
-        ax.annotate(
+    for sid, y in zip(in_view, label_positions, strict=True):
+        ax.text(
+            -LABEL_GAP,
+            y,
             stations[sid].name if sid in stations else sid,
-            xy=(0, positions[sid]),
-            xycoords=left_edge,
-            xytext=(-LEADER_LENGTH, y),
-            textcoords=left_edge,
+            transform=left_edge,
             ha="right",
             va="center_baseline",
-            color=STATION_COLOR if is_major else OTHER_STATION_COLOR,
-            fontsize=STATION_SIZE if is_major else OTHER_STATION_SIZE,
-            annotation_clip=False,
+            color=STATION_COLOR,
+            fontsize=STATION_SIZE,
         )
 
     ax.tick_params(length=0)

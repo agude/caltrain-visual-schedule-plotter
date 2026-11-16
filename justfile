@@ -116,7 +116,7 @@ charts feed="":
         plot "$out/weekday.$suffix" $day
         plot "$out/weekday_north.$suffix" $day --direction north --name "Weekday Northbound"
         plot "$out/weekday_south.$suffix" $day --direction south --name "Weekday Southbound"
-        plot "$out/weekday_gilroy.$suffix" $day --bottom gilroy
+        plot "$out/weekday_gilroy.$suffix" $day --bottom gilroy --height 9
         plot "$out/weekday_morning.$suffix" --start 05:30 --end 10:30 --name "Weekday Morning"
         plot "$out/weekday_evening.$suffix" --start 15:30 --end 20:30 --name "Weekday Evening"
         plot "$out/saturday.$suffix" $weekend --day saturday

@@ -32,19 +32,6 @@ FEED_URL = "https://data.trilliumtransit.com/gtfs/caltrain-ca-us/caltrain-ca-us.
 
 ORIGIN_STATION = "san_francisco"
 
-# The stations the 2017 charts labeled.
-DEFAULT_LABELS = (
-    "san_francisco",
-    "place_MLBR",
-    "san_mateo",
-    "hillsdale",
-    "redwood_city",
-    "palo_alto",
-    "mountain_view",
-    "sunnyvale",
-    "sj_diridon",
-    "gilroy",
-)
 
 WIDTH = 15
 HEIGHT = 7
@@ -100,16 +87,11 @@ def build_parser() -> argparse.ArgumentParser:
     chart.add_argument("--top", default="san_francisco", help="Station ID at the top.")
     chart.add_argument("--bottom", default="sj_diridon", help="Station ID at the bottom.")
     chart.add_argument(
-        "--label",
-        action="append",
-        dest="labels",
-        help="Station ID to label; repeat for more. Default: the 2017 set.",
-    )
-    chart.add_argument(
-        "--other-names",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Name the other served stations in grey. Their grid lines stay. Default: on.",
+        "--height",
+        type=float,
+        default=HEIGHT,
+        help="Chart height in inches. Taller charts spread close station names less."
+        " Default: %(default)s",
     )
     chart.add_argument(
         "--key",
@@ -204,14 +186,12 @@ def draw_chart(args: argparse.Namespace) -> None:
         end_hour=args.end,
         top_station=args.top,
         bottom_station=args.bottom,
-        labeled_stations=args.labels or DEFAULT_LABELS,
-        other_names=args.other_names,
         key=args.key,
     )
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with mpl.rc_context({"font.family": "sans-serif", "font.sans-serif": FONTS}):
-        fig, ax = plt.subplots(figsize=(WIDTH, HEIGHT))
+        fig, ax = plt.subplots(figsize=(WIDTH, args.height))
         plot_marey(ax, trips, feed.stations, positions, options)
         ax.set_title(
             args.title or default_title(args, feed, services),
