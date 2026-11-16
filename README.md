@@ -12,6 +12,7 @@ and [Updated Caltrain Visual Schedule](https://alexgude.com/blog/caltrain-visual
 just fetch       # Download and unpack the current feed into data/caltrain-YYYYMMDD/.
 just charts      # Draw the chart set from the newest feed.
 just charts-all  # Draw the chart set from every feed in data/.
+just comparisons # Compare a 2017 and a 2026 train of each service type.
 ```
 
 Each feed's charts go to `output/<feed name>/`, such as
@@ -47,6 +48,19 @@ uv run caltrain-schedule plot data/caltrain-20261113 output/chart.svg \
 | `--distances` | Feed to take station distances from. The 2017 feeds have none. |
 | `--name` | What the chart shows, for the title. The title adds the month the schedule started. |
 | `--title` | Replaces the whole title. |
+
+Draw two trains against minutes from one station with the `compare`
+command, to see how much faster a service has become:
+
+```sh
+uv run caltrain-schedule compare output/limited.svg \
+    --trip data/caltrain-20170308 207 --trip data/caltrain-20261113 401 \
+    --distances data/caltrain-20261113
+```
+
+The first `--trip` is dashed and the second solid. `--origin` sets the
+station that time is measured from; the default is `sj_diridon`. `just
+comparisons` draws the Local, Limited, and Express pairs for the blog.
 
 Colors follow the 2017 charts: local blue, limited green, express red. South
 County Connector trains, which are new, are purple. A key under each title

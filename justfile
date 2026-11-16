@@ -124,6 +124,22 @@ charts feed="":
     done
     echo "charts: wrote $out/ from $feed"
 
+# Draw one April 2017 train and one 2026 train of each service type against
+# minutes from San Jose Diridon, into output/comparison/. Each pair is
+# northbound and has the most stops in common of any pair of its type.
+comparisons:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    old=data/caltrain-20170308
+    new=data/caltrain-20261113
+    compare() { uv run --locked caltrain-schedule compare "output/comparison/$1" --trip "$old" "$2" --trip "$new" "$3" --distances "$new"; }
+    for suffix in png svg; do
+        compare "local.$suffix" 101 101
+        compare "limited.$suffix" 207 401
+        compare "express.$suffix" 371 519
+    done
+    echo "comparisons: wrote output/comparison/"
+
 # Draw the chart set for every feed in data/, to compare schedules.
 charts-all:
     #!/usr/bin/env bash

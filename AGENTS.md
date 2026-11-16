@@ -56,13 +56,14 @@ CI pass.
 
 - `src/caltrain_schedule/gtfs.py` reads a GTFS zip or directory and computes
   station distances.
-- `src/caltrain_schedule/plot.py` draws a Marey chart on a matplotlib `Axes`.
+- `src/caltrain_schedule/plot.py` draws a Marey chart, or a comparison of
+  two trains, on a matplotlib `Axes`.
 - `src/caltrain_schedule/legacy.py` maps 2017 stop names to station IDs and
   holds the 2017 mileposts.
-- `src/caltrain_schedule/cli.py` holds the `fetch` and `plot` commands.
+- `src/caltrain_schedule/cli.py` holds the `fetch`, `plot`, and `compare` commands.
 - `data/` holds dated feed snapshots, unpacked, byte-for-byte as
   downloaded; `.gitattributes` exempts them from line-ending conversion.
   Station distances come from the newest one. `output/` holds rendered
   charts and is ignored.
-- `just fetch`, `just charts`, and `just charts-all` produce the blog's
-  chart sets.
+- `just fetch`, `just charts`, `just charts-all`, and `just comparisons`
+  produce the blog's chart sets.

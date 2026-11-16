@@ -20,6 +20,7 @@ from caltrain_schedule.plot import (
     hour_label,
     key_entries,
     key_names,
+    plot_comparison,
     plot_marey,
     route_color,
     spread_labels,
@@ -154,3 +155,43 @@ def test_plot_marey_draws_key_unless_turned_off(feed_dir: Path) -> None:
         keys = [key_names(artist) for artist in ax.artists if isinstance(artist, AnchoredOffsetbox)]
         assert keys == expected
         plt.close(fig)
+
+
+def test_plot_comparison_measures_minutes_from_the_origin(feed_dir: Path) -> None:
+    feed = load_feed(feed_dir)
+    positions = station_positions(feed, "san_francisco")
+    local, express = feed.trips[0], feed.trips[1]
+    fig, ax = plt.subplots()
+    legend = plot_comparison(
+        ax, [("old", local), ("new", express)], feed.stations, positions, "san_francisco"
+    )
+    lines = {
+        line.get_label(): line for line in ax.get_lines() if line.get_label() in {"old", "new"}
+    }
+    # The local leaves San Francisco at 0 and reaches San Jose 40 minutes later.
+    assert np.array_equal(lines["old"].get_xdata(), [0.0, 10.0, 40.0])
+    assert lines["old"].get_linestyle() == "--"
+    assert lines["new"].get_linestyle() == "-"
+    # The express reaches San Francisco 45 minutes after it leaves San Jose,
+    # and the local reaches San Jose at 40. The axis pads past both to the
+    # next ten minutes.
+    assert ax.get_xlim() == (-50.0, 50.0)
+    assert [text.get_text() for text in legend.get_texts()] == ["old", "new"]
+    assert [text.get_text() for text in ax.texts] == [
+        "San Francisco",
+        "Millbrae",
+        "San Jose Diridon",
+    ]
+    plt.close(fig)
+
+
+def test_plot_comparison_rejects_bad_trips(feed_dir: Path) -> None:
+    feed = load_feed(feed_dir)
+    positions = station_positions(feed, "san_francisco")
+    local = feed.trips[0]
+    fig, ax = plt.subplots()
+    with pytest.raises(ValueError, match="at most 2"):
+        plot_comparison(ax, [("a", local)] * 3, feed.stations, positions, "san_francisco")
+    with pytest.raises(ValueError, match="does not stop at nowhere"):
+        plot_comparison(ax, [("a", local)], feed.stations, positions, "nowhere")
+    plt.close(fig)

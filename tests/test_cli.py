@@ -154,3 +154,26 @@ def test_plot_without_key(feed_zip: Path, tmp_path: Path) -> None:
     output = tmp_path / "chart.svg"
     assert main(["plot", str(feed_zip), str(output), "--no-key"]) == 0
     assert "Express" not in output.read_text(encoding="utf-8")
+
+
+def test_compare_draws_two_trains(feed_dir: Path, legacy_dir: Path, tmp_path: Path) -> None:
+    output = tmp_path / "compare.svg"
+    argv = ["compare", str(output), "--trip", str(feed_dir), "101", "--trip", str(feed_dir), "102"]
+    argv += ["--distances", str(feed_dir), "--origin", "sj_diridon"]
+    assert main(argv) == 0
+    svg = output.read_text(encoding="utf-8")
+    assert "Local / Express" in svg
+    assert "January 2026: train 102, 45 min" in svg
+    assert "Minutes from San Jose Diridon" in svg
+
+
+def test_compare_reports_missing_train(feed_dir: Path, tmp_path: Path) -> None:
+    argv = ["compare", str(tmp_path / "x.svg"), "--trip", str(feed_dir), "999"]
+    with pytest.raises(SystemExit, match="no trips run as train 999"):
+        main([*argv, "--distances", str(feed_dir)])
+
+
+def test_compare_reports_train_without_the_origin(feed_dir: Path, tmp_path: Path) -> None:
+    argv = ["compare", str(tmp_path / "x.svg"), "--trip", str(feed_dir), "401"]
+    with pytest.raises(SystemExit, match="does not stop at sj_diridon"):
+        main([*argv, "--distances", str(feed_dir)])

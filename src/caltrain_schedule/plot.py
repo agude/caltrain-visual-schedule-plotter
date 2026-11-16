@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 from matplotlib.artist import Artist
 from matplotlib.axes import Axes
+from matplotlib.legend import Legend
 from matplotlib.offsetbox import AnchoredOffsetbox, HPacker, TextArea
 from matplotlib.transforms import blended_transform_factory
 
@@ -65,6 +66,13 @@ FONTS = ["Liberation Sans", "Arial", "DejaVu Sans"]
 LABEL_LINE_HEIGHT = 1.25
 # Gap between the station names and the axes, as a fraction of its width.
 LABEL_GAP = 0.006
+# Line styles for the trips on a comparison chart, oldest first.
+COMPARISON_STYLES = ("--", "-")
+# Minutes between the grid lines of a comparison chart.
+COMPARISON_STEP = 10
+# Least minutes between a stop and the side of a comparison chart, so no
+# stop marker sits on the frame.
+COMPARISON_PAD = 2
 # The frame of matplotlib's former seaborn-white style.
 FRAME_COLOR = "#262626"
 FRAME_WIDTH = 1.25
@@ -261,21 +269,38 @@ def plot_marey(
     ax.set_xlabel(X_LABEL, fontsize=HOUR_SIZE)
 
     # Station grid. Distance increases downward, so San Francisco is on top.
-    # Every served station in view is named on the left, on its grid line.
-    # Where names would overlap they are spread apart.
     near, far = sorted((positions[options.top_station], positions[options.bottom_station]))
     lower = edge_limit(far, positions.values(), 1)
     upper = edge_limit(near, positions.values(), -1)
     ax.set_ylim(lower, upper)
-    ax.set_yticks([])
-
     # Only stations that the trips serve, so a closed station, such as
     # Atherton, appears on old schedules and not on new ones.
     served = {stop.station_id for trip in trips for stop in trip.stop_times}
+    draw_stations(ax, served, stations, positions)
+
+    if options.key:
+        draw_key(ax, (trip.route for trip in trips))
+    style_frame(ax)
+    return ax
+
+
+def draw_stations(
+    ax: Axes,
+    served: Iterable[str],
+    stations: Mapping[str, Station],
+    positions: Mapping[str, float],
+) -> None:
+    """Draw a grid line and a name for each served station within the y limits.
+
+    Every name is on the left, on its grid line. Where names would overlap
+    they are spread apart. Set the y limits first.
+    """
+    lower, upper = ax.get_ylim()
     in_view = sorted(
         (sid for sid in served if upper <= positions[sid] <= lower),
         key=lambda sid: positions[sid],
     )
+    ax.set_yticks([])
     for sid in in_view:
         ax.axhline(positions[sid], color=STATION_GRID_COLOR, linewidth=0.4, zorder=1)
 
@@ -296,11 +321,60 @@ def plot_marey(
             fontsize=STATION_SIZE,
         )
 
+
+def style_frame(ax: Axes) -> None:
+    """Give ``ax`` the tick sizes and dark frame of the 2017 charts."""
     ax.tick_params(length=0)
     ax.tick_params(axis="x", labelsize=HOUR_SIZE)
-    if options.key:
-        draw_key(ax, (trip.route for trip in trips))
     for spine in ax.spines.values():
         spine.set_color(FRAME_COLOR)
         spine.set_linewidth(FRAME_WIDTH)
-    return ax
+
+
+def plot_comparison(
+    ax: Axes,
+    trips: Sequence[tuple[str, Trip]],
+    stations: Mapping[str, Station],
+    positions: Mapping[str, float],
+    origin: str,
+) -> Legend:
+    """Draw trips against minutes since each left ``origin``, to compare their speed.
+
+    ``trips`` pairs each trip with its legend label, oldest first. The
+    first trip is dashed and the second solid, both in their route colors.
+    Every station that any trip serves gets a grid line and a name.
+    """
+    if len(trips) > len(COMPARISON_STYLES):
+        raise ValueError(f"at most {len(COMPARISON_STYLES)} trips to compare")
+    minutes: list[float] = []
+    for (label, trip), style in zip(trips, COMPARISON_STYLES, strict=False):
+        start = next((s.seconds for s in trip.stop_times if s.station_id == origin), None)
+        if start is None:
+            raise ValueError(f"train {trip.train} does not stop at {origin}")
+        times = [(stop.seconds - start) / 60 for stop in trip.stop_times]
+        miles = [positions[stop.station_id] for stop in trip.stop_times]
+        minutes.extend(times)
+        color = route_color(trip.route)
+        ax.plot(times, miles, color=color, linestyle=style, linewidth=2, zorder=3, label=label)
+        ax.scatter(times, miles, s=12, facecolors="w", edgecolors=color, linewidths=1, zorder=4)
+
+    step = COMPARISON_STEP
+    first = math.floor((min(minutes) - COMPARISON_PAD) / step) * step
+    last = math.ceil((max(minutes) + COMPARISON_PAD) / step) * step
+    ticks = range(first, last + 1, step)
+    ax.set_xticks(list(ticks))
+    for tick in ticks:
+        ax.axvline(tick, color=GRID_COLOR, linewidth=0.4, zorder=1)
+    ax.set_xlim(first, last)
+    origin_name = stations[origin].name if origin in stations else origin
+    ax.set_xlabel(f"Minutes from {origin_name}", fontsize=HOUR_SIZE)
+
+    served = {stop.station_id for _, trip in trips for stop in trip.stop_times}
+    served_positions = [positions[sid] for sid in served]
+    ax.set_ylim(
+        edge_limit(max(served_positions), served_positions, 1),
+        edge_limit(min(served_positions), served_positions, -1),
+    )
+    draw_stations(ax, served, stations, positions)
+    style_frame(ax)
+    return ax.legend(loc="lower right", fontsize=KEY_SIZE, frameon=True)
